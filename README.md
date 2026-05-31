@@ -1,5 +1,6 @@
-* LLM-Based Research Assistant *
-** Overview **
+/* LLM-Based Research Assistant */
+
+Overview 
 This project is a prototype of an AI-powered research assistant designed to tackle a practical problem: navigating large, dense knowledge bases efficiently. Instead of relying on keyword search, the system enables semantic querying — understanding the intent behind a question and retrieving contextually relevant information from documents.
 The core idea is straightforward: ingest a knowledge base, embed it into a vector store, and use an LLM to synthesise answers rather than just returning raw chunks. The added filtering layer allows automatic analysis and structured summarisation of technical content, making it useful for decision-support contexts where you need insight, not just search results.
 This started as a personal exploration into Generative AI applied to knowledge management. The goal was to understand, hands-on, how RAG pipelines actually behave at scale — where they work well and where they break.
