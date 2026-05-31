@@ -165,8 +165,7 @@ Building this made those problems concrete, which is the point.
 ## Author
 
 **Venkata Purnima PRABHA**
-[GitHub](https://github.com/purnimaprabhav) · [LinkedIn](https://linkedin.com/in/your-profile)
-
+[GitHub](https://github.com/purnimaprabhav) 
 ---
 
 ## Contributing
