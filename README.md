@@ -1,79 +1,174 @@
-# LLM-Based Research Assistant #
+# LLM-Based Research Assistant
 
-## Overview ## 
-This project is a prototype of an AI-powered research assistant designed to tackle a practical problem: navigating large, dense knowledge bases efficiently. Instead of relying on keyword search, the system enables semantic querying — understanding the intent behind a question and retrieving contextually relevant information from documents.
-The core idea is straightforward: ingest a knowledge base, embed it into a vector store, and use an LLM to synthesise answers rather than just returning raw chunks. The added filtering layer allows automatic analysis and structured summarisation of technical content, making it useful for decision-support contexts where you need insight, not just search results.
-This started as a personal exploration into Generative AI applied to knowledge management. The goal was to understand, hands-on, how RAG pipelines actually behave at scale — where they work well and where they break.
+> A RAG pipeline for semantic querying of large document corpora — built to go beyond keyword search and return synthesised, context-aware answers from technical knowledge bases.
 
-## Main Architecture ##
-Document Ingestion Pipeline: Loads and chunks documents from the knowledge base, preparing them for embedding.
-Vector Store: Embeds document chunks using sentence-level models and stores them for semantic retrieval.
-Retrieval Module: Runs similarity search against the vector store based on the user's natural language query.
-LLM Synthesis Layer: Passes retrieved chunks to an LLM to generate a coherent, context-aware answer.
-Intelligent Filters: Post-retrieval filtering logic for automatic analysis and structured synthesis of technical reports.
+---
 
+## Overview
 
-## Features ##
-Semantic querying over large document collections — no keyword matching required.
-Modular separation between ingestion, retrieval, and generation concerns.
-Intelligent filtering for technical report analysis and synthesis.
-Designed with decision-support use cases in mind: outputs are structured summaries, not raw document excerpts.
-Clean separation between the research_assistant core and scripts layer for flexibility and extensibility.
+This project is a personal prototype exploring how Retrieval-Augmented Generation (RAG) can make large, unstructured document collections actually queryable. The problem it solves is straightforward: keyword search fails on technical documents because the answer you need is rarely phrased the way you asked the question.
 
-## Methodology and Tools ##
-Language Models: OpenAI / compatible LLM backends
-Frameworks: Python, LangChain, Sentence-Transformers
-AI/ML Techniques: RAG (Retrieval-Augmented Generation), vector embeddings, semantic similarity search, chunking strategies
-Vector Store: FAISS (local) — adaptable to other stores
-Approach: Prototype-first, iterative — built to understand the failure modes of RAG in practice, not just the happy path
+The system ingests PDFs, extracts and chunks text, embeds it into a FAISS vector store, and uses GPT-4o-mini via LangChain's `RetrievalQA` chain to synthesise answers grounded in retrieved document chunks. The filtering layer enables automatic analysis and structured summarisation of technical content — useful in decision-support contexts where you need insight, not raw excerpts.
 
-## Use Cases ##
-Semantic search over internal technical documentation or research corpora
-Automatic synthesis of lengthy technical reports for faster decision-making
-Knowledge base querying for teams dealing with high volumes of unstructured documents
-Foundation for a production-ready document intelligence assistant
+This started as a hands-on exploration of where RAG works well and where it breaks. The architecture is intentionally kept simple to make those failure modes visible.
 
-## Project Structure ## 
-├── research_assistant/     # Core RAG pipeline: ingestion, retrieval, generation, filtering
-├── scripts/                # Utility scripts for data prep, indexing, and running queries
-├── requirements.txt        # Python dependencies
-├── .gitignore
-├── README.md
+---
 
-## Setup Instructions ##
-Clone the repository
-bashgit clone https://github.com/purnimaprabhav/LLM_based_research_assistant.git
+## Architecture
+
+```
+PDF Documents
+     │
+     ▼
+[ PDF Parser ]          ← pdfplumber + PyPDF2 + pdfminer.six (fallback chain)
+     │
+     ▼
+[ Text Chunker ]        ← tiktoken-aware chunking to respect GPT context limits
+     │
+     ▼
+[ OpenAI Embeddings ]   ← text-embedding-ada-002 via langchain-openai
+     │
+     ▼
+[ FAISS Index ]         ← faiss-cpu, local vector store (FAISSStore wrapper)
+     │
+     ▼
+[ Retriever ]           ← similarity search, top-k chunks returned
+     │
+     ▼
+[ RetrievalQA Chain ]   ← LangChain, chain_type="stuff", GPT-4o-mini
+     │
+     ▼
+[ Synthesised Answer ]
+```
+
+**Core class:** `ResearchAssistant` orchestrates the full pipeline:
+- `ingest_pdfs(pdf_paths)` — parses PDFs and builds the FAISS index
+- `setup_qa()` — initialises the `RetrievalQA` chain with the retriever and LLM
+- `ask(question)` — runs a natural language query end-to-end
+
+---
+
+## Key Technical Choices
+
+- **PDF parsing fallback chain:** `pdfplumber` → `PyPDF2` → `pdfminer.six` — handles scanned, malformed, and text-native PDFs without crashing on edge cases.
+- **tiktoken-aware chunking:** chunks are sized to respect GPT-4o-mini's context window, avoiding silent truncation during generation.
+- **FAISS (CPU):** local vector store — no external service dependency, fast enough for corpora of hundreds of documents on a standard machine.
+- **`chain_type="stuff"`:** passes all retrieved chunks directly into the prompt. Simple and transparent — easier to debug retrieval quality than map-reduce or refine chains.
+- **`temperature=0`:** deterministic outputs, important for technical content where consistency matters.
+- **NLP preprocessing:** `spacy` and `nltk` used for text cleaning and sentence boundary detection before chunking.
+- **Async support:** `aiohttp` included for future async ingestion of web-sourced documents alongside PDFs.
+
+---
+
+## Stack
+
+| Layer | Library / Tool |
+|---|---|
+| LLM | GPT-4o-mini (`langchain-openai`) |
+| Embeddings | OpenAI `text-embedding-ada-002` |
+| Vector Store | FAISS (`faiss-cpu`) |
+| Orchestration | LangChain (`RetrievalQA`, `langchain-core`, `langchain-community`) |
+| PDF Parsing | `pdfplumber`, `PyPDF2`, `pdfminer.six` |
+| Tokenisation | `tiktoken` |
+| NLP | `spacy`, `nltk` |
+| Web scraping (planned) | `beautifulsoup4`, `aiohttp`, `requests` |
+| Config | `python-dotenv` |
+
+---
+
+## Project Structure
+
+```
+├── research_assistant/
+│   ├── vectorstore/
+│   │   └── faiss_store.py       # FAISSStore: build_index(), as_retriever()
+│   ├── utils/
+│   │   └── pdf_parser.py        # extract_text_from_pdf() with fallback chain
+│   └── core.py                  # ResearchAssistant class
+├── scripts/                     # Ingestion and query entry points
+├── requirements.txt
+├── .env.example
+└── README.md
+```
+
+---
+
+## Setup
+
+1. **Clone the repo**
+
+```bash
+git clone https://github.com/purnimaprabhav/LLM_based_research_assistant.git
 cd LLM_based_research_assistant
-Create a virtual environment
-bashpython -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-Install dependencies
-bashpip install -r requirements.txt
-Set up your API key
+```
 
-bashexport OPENAI_API_KEY="your-api-key-here"
+2. **Create a virtual environment**
 
-Ingest your documents
+```bash
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+```
 
-Place your documents in the designated data folder and run the ingestion script:
-bashpython scripts/ingest.py
+3. **Install dependencies**
 
-Run a query
-bashpython scripts/query.py --question "Your question here"
+```bash
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm  # spaCy language model
+```
 
-## Current Limitations / Future Work ##
-Feedback loop and query history are not yet implemented — planned for a future iteration.
-Chunking strategy is static; adaptive chunking based on document type would improve retrieval quality.
-UI layer (e.g. Streamlit) not yet built — currently CLI only.
-Evaluation framework (retrieval precision, answer faithfulness) is a natural next step before any production use.
+4. **Configure your API key**
 
+```bash
+cp .env.example .env
+# Add your key to .env:
+# OPENAI_API_KEY=sk-...
+```
 
-## Summary ##
-This project demonstrates that semantic querying meaningfully outperforms keyword search for navigating complex knowledge bases — particularly for technical documents where the answer rarely lives in a single sentence. The synthesis layer adds real value by reducing cognitive load for the end user.
-It also surfaced some honest lessons: RAG works well when documents are well-structured and chunked thoughtfully; it degrades quickly when chunks lose context or when the retrieval step returns marginally relevant material. Those are the problems worth solving next.
+5. **Ingest your documents**
 
-## Author ##
-Venkata Purnima PRABHA
+```python
+from research_assistant.core import ResearchAssistant
 
-## Contribution ##
+assistant = ResearchAssistant()
+assistant.ingest_pdfs(["doc1.pdf", "doc2.pdf"])
+assistant.setup_qa()
+```
+
+6. **Ask a question**
+
+```python
+answer = assistant.ask("What are the key findings on X?")
+print(answer)
+```
+
+---
+
+## Current Limitations / What's Next
+
+- **Chunking is static** — fixed-size, tiktoken-aware but not semantically aware. Sentence-boundary chunking via `spacy` is the natural next step.
+- **`chain_type="stuff"`** breaks on very large result sets where retrieved chunks exceed the context window. Map-reduce or refine chains would handle this better.
+- **No reranking** — retrieved chunks are returned purely by cosine similarity. A cross-encoder reranker (e.g. `sentence-transformers`) would improve answer quality on ambiguous queries.
+- **No evaluation framework** — retrieval precision and answer faithfulness are not yet measured. RAGAS integration is planned.
+- **Web ingestion** (`beautifulsoup4`, `aiohttp`) is scaffolded but not yet wired into the main pipeline.
+- **No UI** — CLI only for now. Streamlit frontend is a natural next step.
+
+---
+
+## What I Learned
+
+RAG is deceptively simple to prototype and genuinely hard to do well. The failure modes are almost never in the LLM — they're in the retrieval step: chunks that lose context when split, embeddings that retrieve topically related but semantically wrong passages, and prompts that don't tell the model what to do when the retrieved context doesn't contain the answer.
+
+Building this made those problems concrete, which is the point.
+
+---
+
+## Author
+
+**Venkata Purnima PRABHA**
+[GitHub](https://github.com/purnimaprabhav) · [LinkedIn](https://linkedin.com/in/your-profile)
+
+---
+
+## Contributing
+
 Pull requests and issues are welcome. Please open an issue to discuss major changes before submitting a PR.
